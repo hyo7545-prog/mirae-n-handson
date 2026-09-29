@@ -1,5 +1,8 @@
 package com.example.item;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -7,8 +10,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.common.NotFoundException;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -74,5 +79,40 @@ class ItemControllerTest {
             .andExpect(jsonPath("$.length()").value(2))
             .andExpect(jsonPath("$[0].id").value(2))
             .andExpect(jsonPath("$[1].tags[0]").value("계산"));
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search → 200, {status, rows, count, message} — 단건 조회로 가지 않는다")
+    @SuppressWarnings("unchecked")
+    void searchItemsReturnsNormalizedShape() throws Exception {
+        when(itemService.searchItems(anyMap())).thenReturn(ItemSearchResponse.of(
+            List.of(new ItemSearchRow(12, "대분수의 덧셈", "M5-1", 3, List.of("계산", "오답률높음"))), 1));
+
+        mockMvc.perform(get("/api/items/search").param("unit", "M5-1").param("level", "3abc"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value(200))
+            .andExpect(jsonPath("$.count").value(1))
+            .andExpect(jsonPath("$.message").isEmpty())
+            .andExpect(jsonPath("$.rows[0].id").value(12))
+            .andExpect(jsonPath("$.rows[0].unit").value("M5-1"))
+            .andExpect(jsonPath("$.rows[0].tags[1]").value("오답률높음"))
+            .andExpect(jsonPath("$.rows[0].stem").doesNotExist())
+            .andExpect(jsonPath("$.rows[0].status").doesNotExist());
+
+        ArgumentCaptor<Map<String, List<String>>> params = ArgumentCaptor.forClass(Map.class);
+        verify(itemService).searchItems(params.capture());
+        assertThat(params.getValue()).containsEntry("level", List.of("3abc"));
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search 0건 → 404 가 아니라 200, 안내 문구")
+    void searchItemsWithNoResultReturns200() throws Exception {
+        when(itemService.searchItems(anyMap())).thenReturn(ItemSearchResponse.of(List.of(), 0));
+
+        mockMvc.perform(get("/api/items/search").param("unit", "Z9-99").param("tag[]", "계산"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(0))
+            .andExpect(jsonPath("$.rows.length()").value(0))
+            .andExpect(jsonPath("$.message").value("검색 결과가 없습니다"));
     }
 }

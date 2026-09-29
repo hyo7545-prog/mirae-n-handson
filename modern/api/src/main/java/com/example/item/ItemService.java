@@ -2,8 +2,10 @@ package com.example.item;
 
 import com.example.common.NotFoundException;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,5 +42,21 @@ public class ItemService {
             .toList();
         log.debug("unit {} has {} active items", unit.getCode(), items.size());
         return items;
+    }
+
+    /**
+     * 문항 검색(레거시 {@code search.php} 이관). 잘못된 입력도 오류 없이 보정하거나 그대로 조회하고,
+     * 없는 단원 · 범위 밖 난이도는 0건으로 돌려준다.
+     *
+     * @param params 쿼리 파라미터(이름 → 값 목록)
+     */
+    public ItemSearchResponse searchItems(Map<String, List<String>> params) {
+        ItemSearchCondition condition = ItemSearchCondition.from(params);
+        Page<Item> page = itemRepository.findAll(ItemSpecifications.matching(condition), condition.toPageable());
+        List<ItemSearchRow> rows = page.getContent().stream()
+            .map(ItemSearchRow::from)
+            .toList();
+        log.debug("item search matched {} items (page {})", page.getTotalElements(), condition.page());
+        return ItemSearchResponse.of(rows, page.getTotalElements());
     }
 }
