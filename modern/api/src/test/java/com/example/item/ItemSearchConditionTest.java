@@ -93,6 +93,17 @@ class ItemSearchConditionTest {
     }
 
     @Test
+    @DisplayName("태그 표기 혼합(tag[]=a&tag=b&tag[]=c → {tag[]: [a, c], tag: [b]})은 b"
+        + " — 레거시(search.php:66-67)는 c, 알려진 차이, 현재 동작 고정")
+    void mixedArrayAndPlainTagTakesPlainValue() {
+        Map<String, List<String>> params = new LinkedHashMap<>();
+        params.put("tag[]", List.of("a", "c"));
+        params.put("tag", List.of("b"));
+
+        assertThat(ItemSearchCondition.from(params).tag()).isEqualTo("b");
+    }
+
+    @Test
     @DisplayName("페이지: 0 · 음수 · 숫자 아님은 1, 999 초과는 999, 앞 공백은 숫자로 보지 않는다")
     void pageIsClamped() {
         assertThat(parse("page", "2").page()).isEqualTo(2);
