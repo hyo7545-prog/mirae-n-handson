@@ -27,6 +27,45 @@ server.registerTool(
 // - 감쌀 API 는 ./itemApi.js 에 있다 (ESM 이라 확장자를 .js 로 적는다)
 // - import 문도 이 자리에 함께 붙여 넣어도 된다
 // ================================================================
+import * as z from 'zod/v4';
+import { searchItems } from './itemApi.js';
+
+const searchItemsInput = z.object({
+  keyword: z.string().describe('문항 본문 또는 태그에서 찾을 검색어 (예: "통분", "오답률높음")'),
+  unit: z
+    .string()
+    .optional()
+    .describe('단원 코드(예: "M5-1") 또는 단원 이름 일부(예: "분수의 곱셈"). 생략하면 전체 단원'),
+  difficulty: z.enum(['하', '중', '상']).optional().describe('난이도: "하" · "중" · "상" 중 하나. 생략하면 전체 난이도'),
+  limit: z.number().int().min(1).max(20).default(5).describe('돌려받을 최대 문항 수 (1~20, 기본 5)')
+});
+
+server.registerTool(
+  'search_items',
+  {
+    description:
+      '초등 수학 문항 은행에서 문항을 검색한다(읽기 전용). ' +
+      '사용자가 특정 주제 · 단원 · 난이도의 문항을 찾거나, 문제 출제 · 과제 구성을 위해 ' +
+      '기존 문항 예시가 필요할 때 이 도구를 쓴다. 문항을 만들거나 고치는 용도가 아니다. ' +
+      '반환: 문항 id · 단원 코드 · 난이도 · 태그 · 본문(stem) 목록(JSON). ' +
+      '주의: itembank DB 를 직접 읽지 않고 공개 문항 일부만 담은 사본을 검색한다(DB 의 모든 문항이 나오지는 않는다). ' +
+      'id · 단원 코드는 DB 와 같지만 표현이 다르다: 난이도는 DB level(1~5) 대신 하 · 중 · 상' +
+      '(관찰상 1~2 하, 3 중, 4~5 상), 본문은 DB stem 에 설명 문구(예: "분모가 같은 분수")가 덧붙어 있어 ' +
+      '같은 검색어로 DB 를 찾으면 결과가 다를 수 있다.',
+    inputSchema: searchItemsInput
+  },
+  async ({ keyword, unit, difficulty, limit }) => {
+    const results = await searchItems({ keyword, unit, difficulty, limit });
+    console.error(`search_items: ${results.length}건`);
+    const payload =
+      results.length === 0
+        ? { message: '검색 결과 없음', conditions: { keyword, unit, difficulty, limit } }
+        : { count: results.length, items: results };
+    return {
+      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }]
+    };
+  }
+);
 
 async function main() {
   const transport = new StdioServerTransport();
