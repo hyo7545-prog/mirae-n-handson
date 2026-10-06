@@ -35,7 +35,7 @@ modern/web · legacy/ · db/ · `build.gradle` · `application.yml` 변경은 �
 | 2 | 경고 | `characterization/tests/item-bank.test.js:1`, `characterization/__snapshots__/item-bank.test.js.snap:1` | (1차 이슈 2 이월) characterization 테스트 · 스냅샷이 diff 에 있다(`CLAUDE.md` 완료 기준). 91932d3 에서 신규 추가된 뒤 수정 이력이 없어 통과시키려고 고친 흔적은 없다 | 사람이 "베이스라인 선행 커밋"으로 인정하면 기각 가능 |
 | 3 | 경고 | `docs/verify/migration-review-1.md:1` | 9cc62de 의 제목은 `fix: 검증루프 1차 리뷰 반영`이지만 리뷰 문서 추가만 있고 코드 · 범위 정리는 없다. 커밋 설명과 diff 가 다르고, 이관 코드가 아닌 파일이 하나 더 늘었다 | 리뷰 기록은 이관 PR 밖(별도 커밋 · 문서 브랜치)에 두거나, 커밋 메시지를 실제 내용(`docs: 1차 리뷰 기록`)에 맞춘다 |
 | 4 | 경고 | `modern/api/src/main/java/com/example/item/ItemController.java:29` | 실행 확인. 쿼리스트링에 `[` `]` 를 인코딩하지 않고 보내면 레거시는 200, 새 API 는 Tomcat 이 컨트롤러 전에 400(HTML 오류 페이지)을 돌려준다. `?tag[]=도형` · `?q[]=분수` · `?level[]=3` · `?page[]=2` 네 경우 모두 같다. `%5B%5D` 로 인코딩하면 6개 경우 모두 레거시와 같은 결과다. Javadoc(26행)은 `tag[]` 지원을 명시하고 있다. 레거시 화면이 만드는 링크는 `[]` 를 쓰지 않으므로(`search.php:414,430`) 브라우저 사용자에게는 영향이 없고, 손으로 만든 URL · 외부 연동 · 즐겨찾기에만 해당한다. 원인은 이번 diff 가 아니라 서버 기본 설정이다(`/api/items/1?x[]=1` 도 400) | 그런 호출자가 있는지 사람이 확인한다. 있으면 `server.tomcat.relaxed-query-chars: "[,]"` 를 검토한다. 설정 변경이므로 이번 이관 범위에 넣을지 따로 정한다 |
-| 5 | 경고 | `modern/api/src/main/java/com/example/common/GlobalExceptionHandler.java:53` | 실행 확인. `POST · PUT · DELETE /api/items/search` 가 500 `서버 내부 오류`를 돌려준다. 레거시 `search.php` 는 메서드를 보지 않고 `$_GET` 만 읽어(`search.php:722`) 200 을 준다. 405 가 아니라 500 인 것은 기존 `handleUnexpected(Exception)` 가 `HttpRequestMethodNotSupportedException` 을 받아서이며, 이번 diff 밖의 기존 동작이다(`POST /api/items/1` · `/api/units` 도 500). 팀 `CLAUDE.md` §2 의 "나머지 500" 규칙과도 맞는다. 레거시 폼은 `method="get"`(`search.php:632`)이라 정상 경로에는 영향이 없다 | 이관 동작 차이로 기록만 하거나, 별도 변경에서 405 로 매핑한다. 이번 이관에서는 고치지 않는다 |
+| 5 | 경고 | `modern/api/src/main/java/com/example/common/GlobalExceptionHandler.java:53` | 실행 확인. `POST · PUT · DELETE /api/items/search` 가 500 `서버 내부 오류`를 돌려준다. 레거시 `search.php` 는 메서드를 보지 않고 `$_GET` 만 읽어(`search.php:722`) 200 을 준다. 405 가 아니라 500 인 것은 기존 `handleUnexpected(Exception)` 가 `HttpRequestMethodNotSupportedException` 을 받아서로 보인다(응답 본문 `"message":"서버 내부 오류"` 는 이 핸들러의 문구다. 서버 로그는 파이프로 나가 확인하지 못했다). 이번 diff 밖의 기존 동작이다(`POST /api/items/1` · `/api/units` 도 500). 팀 `CLAUDE.md` §2 의 "나머지 500" 규칙과도 맞는다. 레거시 폼은 `method="get"`(`search.php:632`)이라 정상 경로에는 영향이 없다 | 이관 동작 차이로 기록만 하거나, 별도 변경에서 405 로 매핑한다. 이번 이관에서는 고치지 않는다 |
 | 6 | 제안 | `modern/api/src/main/java/com/example/item/ItemSearchRow.java:17` | (1차 이슈 3 이월) `item.getTags()` 가 LAZY(`Item.java:54`)라 페이지당 최대 20건의 태그 조회가 추가로 나간다(N+1) | `@BatchSize` 또는 id 목록으로 태그를 한 번에 조회하는 방안 검토. 동작이 바뀌지 않는 범위에서만 |
 | 7 | 제안 | `modern/api/src/main/java/com/example/item/ItemSpecifications.java:28` | (1차 이슈 4 이월) 앞 `%` LIKE 로 인덱스를 못 타고, `%` · `_` 가 와일드카드로 동작한다. 실행 확인: `q=_` 가 레거시 · 새 API 모두 전체 결과를 돌려준다. 레거시 BR-04 와 같은 동작이다 | 이관 중에는 고치지 않는다. 의심 동작으로 남긴다 |
 
@@ -57,7 +57,7 @@ characterization 스냅샷에 없는 입력만 골라 두 서버에 같은 쿼�
 
 - 키워드 `%` · `_` 를 이스케이프하지 않고 와일드카드로 쓴다(`ItemSpecifications.java:28`, BR-04).
 - `level=6` · `3abc` 같은 값을 오류 없이 PHP `(int)` 변환으로 조회한다(`ItemSearchCondition.java` `phpIntval`, BR-09).
-- 1차에 적은 "`page` 에만 trim 을 하지 않는다(`" 2"` → 1)"는 이번 실행에서 `page=%202` 가 두 서버 모두 2페이지(18번부터)를 돌려줘 재현되지 않았다. 정규화 결과 기준으로는 차이가 없다.
+- `page` 에만 trim 을 하지 않는다(`ItemSearchCondition.java` `resolvePage`). 실행 재현: `page=%202` 가 두 서버 모두 1페이지(18번부터 20건)를 돌려준다. 기본 검색은 정확히 20건이라 진짜 2페이지는 비어 있다(스냅샷 `2페이지` 항목 `rows: []`, `page=3` 실행 결과도 `rows: []`). `page=1.9` → 1페이지도 같은 PHP `(int)` 변환 계열이다.
 
 ## 1차 "확인 필요" 처리 결과
 
@@ -68,6 +68,7 @@ characterization 스냅샷에 없는 입력만 골라 두 서버에 같은 쿼�
 ## 확인 필요
 
 - 이슈 4 — `[]` 를 인코딩하지 않고 `/search.php` 를 호출하는 외부 호출자(연동 · 즐겨찾기)가 있는지. 줄번호로 확인할 수 없는 운영 정보다.
+- 이슈 5 의 원인 — bootRun 콘솔(또는 로그)에서 `unhandled exception on /api/items/search` 와 함께 `HttpRequestMethodNotSupportedException` 이 찍히는지 확인한다.
 - `.claude/skills/verify/` — 작업 트리에 추적되지 않은 상태(`??`)다. 이 리뷰가 따른 절차가 커밋돼 있지 않아 다른 PC 의 리뷰어는 같은 Skill 을 쓰지 못한다. 이번 diff 대상은 아니다.
 - `modern/web` — 변경 없음. 테스트를 실행하지 않았다.
 
